@@ -1,0 +1,68 @@
+trigger:
+- main
+
+
+
+variables:
+  vmImageName: 'windows-latest'
+  azureSubscription: 'test-vm'
+  resourceGroupName: 'allpay-uks-rg-dd-networking'
+  location: 'uksouth'
+  parameters: 'deploy.parameters.json'
+  
+  templateFile: 'main.bicep'
+
+pool:
+  vmImage: $(vmImageName)
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - task: AzureCLI@2
+      displayName: 'build bicep artifact' 
+      inputs:
+        azureSubscription: $(azureSubscription) 
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: 'az bicep build --file main.bicep'
+    
+    
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifact in pipeline' 
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)/main.json'
+        ArtifactName: 'finished'
+        publishLocation: 'Container'
+
+- stage: deploy
+  jobs:
+  - deployment: biceptoAzure
+    displayName: 'Deploy bicep to Azure'
+    environment: 'VMs'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'deploy bicep template'
+            inputs:
+              azureSubscription: $(azureSubscription) 
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                 az --version
+                 az group create --name $(resourceGroupName) --location $(location)
+                 az deployment group create --resource-group $(resourceGroupName) --template-file $(templateFile) --parameters $(parameters)
+
+  
+
+
+
+
+
+
+
